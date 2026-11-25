@@ -1,0 +1,20 @@
+.gmj-card {
+  text-align: center;
+}
+.gmj-card img {
+  width: 96px;
+  height: 96px;
+  border: none;
+  border-radius: 8px;
+}
+.gmj-card h3 {
+  margin: 4px 0 0;
+  border: none;
+  font-weight: bold;
+}
+.dice-rolls .gmj-face {
+  width: 24px;
+  height: 24px;
+  border: none;
+  vertical-align: middle;
+}

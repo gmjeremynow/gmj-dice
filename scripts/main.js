@@ -1,0 +1,212 @@
+const MODULE_ID = "gmj-dice";
+const FACE_PATH = `modules/${MODULE_ID}/faces`;
+
+/**
+ * Each entry defines one custom d6.
+ * faces: face value -> result. Edit a table to change which face is which.
+ */
+export const DICE = {
+  critical: {
+    name: "Critical Hit",
+    denomination: "h",
+    command: "/crit",
+    colors: { background: "#000000", foreground: "#ffffff", edge: "#000000" },
+    faces: {
+      1: { label: "Stun",          img: `${FACE_PATH}/critical/stun.png` },
+      2: { label: "Double Damage", img: `${FACE_PATH}/critical/double-damage.png` },
+      3: { label: "Sever Limb",    img: `${FACE_PATH}/critical/sever-limb.png` },
+      4: { label: "Max Damage",    img: `${FACE_PATH}/critical/max-damage.png` },
+      5: { label: "Triple Damage", img: `${FACE_PATH}/critical/triple-damage.png` },
+      6: { label: "Death",         img: `${FACE_PATH}/critical/death.png` }
+    }
+  },
+  fumble: {
+    name: "Fumble",
+    denomination: "u",
+    command: "/fumble",
+    colors: { background: "#d9680c", foreground: "#000000", edge: "#d9680c" },
+    faces: {
+      1: { label: "Drop Weapon",  img: `${FACE_PATH}/fumble/drop-weapon.png` },
+      2: { label: "Fall",         img: `${FACE_PATH}/fumble/fall.png` },
+      3: { label: "Break Weapon", img: `${FACE_PATH}/fumble/break-weapon.png` },
+      4: { label: "Hit Self",     img: `${FACE_PATH}/fumble/hit-self.png` },
+      5: { label: "Hit Ally",     img: `${FACE_PATH}/fumble/hit-ally.png` },
+      6: { label: "Knocked Out",  img: `${FACE_PATH}/fumble/knocked-out.png` }
+    }
+  },
+  location: {
+    name: "Hit Location",
+    denomination: "b",
+    command: "/location",
+    colors: { background: "#bfbfbf", foreground: "#000000", edge: "#bfbfbf" },
+    faces: {
+      1: { label: "Head",      img: `${FACE_PATH}/location/head.png` },
+      2: { label: "Torso",     img: `${FACE_PATH}/location/torso.png` },
+      3: { label: "Right Arm", img: `${FACE_PATH}/location/right-arm.png` },
+      4: { label: "Left Arm",  img: `${FACE_PATH}/location/left-arm.png` },
+      5: { label: "Right Leg", img: `${FACE_PATH}/location/right-leg.png` },
+      6: { label: "Left Leg",  img: `${FACE_PATH}/location/left-leg.png` }
+    }
+  }
+};
+
+/**
+ * Automatic follow-up rolls: when a die lands on the named face,
+ * roll the listed die right after it.
+ */
+const FOLLOW_UPS = {
+  critical: { "Sever Limb": "location" }
+};
+
+const BaseDie = foundry.dice?.terms?.Die ?? globalThis.Die;
+
+/** Build a Die subclass for one entry in DICE. */
+function makeDieClass(key, def) {
+  const cls = class extends BaseDie {
+    constructor(termData = {}) {
+      termData.faces = 6;
+      super(termData);
+    }
+
+    static DENOMINATION = def.denomination;
+
+    /** Shown in the roll tooltip instead of a number. */
+    getResultLabel(result) {
+      const face = def.faces[result.result];
+      return face
+        ? `<img class="gmj-face" src="${face.img}" alt="${face.label}" title="${face.label}">`
+        : String(result.result);
+    }
+  };
+
+  // Foundry and Dice So Nice! rebuild rolls by class name, so every die
+  // class needs its own unique name (e.g. GMJCriticalDie, GMJFumbleDie).
+  const name = `GMJ${key[0].toUpperCase()}${key.slice(1)}Die`;
+  Object.defineProperty(cls, "name", { value: name });
+  return cls;
+}
+
+/** Roll a special die, animate it if Dice So Nice! is active, then post a result card. */
+async function rollSpecial(key, { speaker, flavor } = {}) {
+  const def = DICE[key];
+  if (!def) throw new Error(`${MODULE_ID} | Unknown die "${key}"`);
+
+  const roll = await new Roll(`1d${def.denomination}`).evaluate();
+  const face = def.faces[roll.total];
+
+  if (game.dice3d) await game.dice3d.showForRoll(roll, game.user, true);
+
+  const content = `
+    <div class="gmj-card gmj-${key}">
+      <img src="${face.img}" alt="${face.label}">
+      <h3>${face.label}</h3>
+    </div>`;
+
+  speaker ??= ChatMessage.getSpeaker();
+  const message = await ChatMessage.create({ speaker, flavor: flavor ?? def.name, content });
+
+  const next = FOLLOW_UPS[key]?.[face.label];
+  if (next) await rollSpecial(next, { speaker, flavor: `${DICE[next].name} (${face.label})` });
+
+  return message;
+}
+
+Hooks.once("init", () => {
+  for (const [key, def] of Object.entries(DICE)) {
+    const cls = makeDieClass(key, def);
+    CONFIG.Dice.terms[def.denomination] = cls;
+    if (CONFIG.Dice.termTypes) CONFIG.Dice.termTypes[cls.name] = cls;
+  }
+  game.modules.get(MODULE_ID).api = {
+    DICE,
+    rollSpecial,
+    rollCriticalHit: (opts) => rollSpecial("critical", opts),
+    rollFumble: (opts) => rollSpecial("fumble", opts),
+    rollHitLocation: (opts) => rollSpecial("location", opts)
+  };
+});
+
+// Macros the module creates for the GM. Icons use one face of each die.
+const MACROS = {
+  critical: { name: "Roll Critical Hit",  img: `${FACE_PATH}/critical/death.png`,  fn: "rollCriticalHit" },
+  fumble:   { name: "Roll Fumble",        img: `${FACE_PATH}/fumble/fall.png`,     fn: "rollFumble" },
+  location: { name: "Roll Hit Location",  img: `${FACE_PATH}/location/torso.png`,  fn: "rollHitLocation" }
+};
+const FOLDER_NAME = "GM Jeremy's Critical Hit Dice";
+
+Hooks.once("init", () => {
+  game.settings.register(MODULE_ID, "createMacros", {
+    name: "Create macros automatically",
+    hint: "When a GM loads the world, create any missing dice macros in the Macro Directory. Turn off if you deleted macros you don't want back.",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+});
+
+/** Create any missing macros. Runs only for one active GM to avoid duplicates. */
+async function ensureMacros() {
+  const isLeadGM = game.users.activeGM ? game.users.activeGM.isSelf : game.user.isGM;
+  if (!isLeadGM || !game.settings.get(MODULE_ID, "createMacros")) return;
+
+  const existing = new Set(game.macros.map(m => m.getFlag(MODULE_ID, "die")).filter(Boolean));
+  const missing = Object.keys(MACROS).filter(k => !existing.has(k));
+  if (!missing.length) return;
+
+  let folder = game.folders.find(f => f.type === "Macro" && f.getFlag(MODULE_ID, "folder"));
+  folder ??= await Folder.create({ name: FOLDER_NAME, type: "Macro", flags: { [MODULE_ID]: { folder: true } } });
+
+  const observer = CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
+  await Macro.createDocuments(missing.map(k => ({
+    name: MACROS[k].name,
+    type: "script",
+    img: MACROS[k].img,
+    command: `game.modules.get("${MODULE_ID}").api.${MACROS[k].fn}();`,
+    folder: folder.id,
+    ownership: { default: observer },
+    flags: { [MODULE_ID]: { die: k } }
+  })));
+  ui.notifications.info(`${FOLDER_NAME}: created ${missing.length} macro(s) in the Macro Directory.`);
+}
+
+Hooks.once("ready", ensureMacros);
+
+// Chat commands such as "/crit" and "/fumble".
+Hooks.on("chatMessage", (_log, message) => {
+  const cmd = message.trim().toLowerCase();
+  const key = Object.keys(DICE).find(k => DICE[k].command === cmd);
+  if (!key) return true;
+  rollSpecial(key);
+  return false;
+});
+
+// 3D appearance for Dice So Nice!
+Hooks.once("diceSoNiceReady", (dice3d) => {
+  dice3d.addSystem({ id: MODULE_ID, name: "GM Jeremy's Critical Hit Dice" }, "default");
+
+  for (const [key, def] of Object.entries(DICE)) {
+    const colorset = `gmj-${key}`;
+    dice3d.addColorset({
+      name: colorset,
+      description: def.name,
+      category: "GM Jeremy's Dice",
+      foreground: def.colors.foreground,
+      background: def.colors.background,
+      outline: def.colors.background,
+      edge: def.colors.edge,
+      texture: "none",
+      material: "plastic"
+    }, "default");
+
+    const labels = Object.keys(def.faces).sort((a, b) => a - b).map(k => def.faces[k].img);
+    for (const system of ["standard", MODULE_ID]) {
+      dice3d.addDicePreset({
+        type: `d${def.denomination}`,
+        labels,
+        system,
+        colorset
+      }, "d6");
+    }
+  }
+});

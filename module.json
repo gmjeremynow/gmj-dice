@@ -1,0 +1,33 @@
+{
+  "id": "gmj-dice",
+  "title": "GM Jeremy's Critical Hit Dice",
+  "description": "Custom six-sided Critical Hit, Fumble and Hit Location dice with 3D support through Dice So Nice!. Roll with /crit, /fumble and /location, or the formulas 1dh, 1du and 1db. A Sever Limb critical rolls Hit Location automatically.",
+  "version": "1.4.0",
+  "authors": [
+    {
+      "name": "GM Jeremy"
+    }
+  ],
+  "url": "https://github.com/gmjeremynow/gmj-dice",
+  "manifest": "https://github.com/gmjeremynow/gmj-dice/releases/latest/download/module.json",
+  "download": "https://github.com/gmjeremynow/gmj-dice/releases/download/v1.4.0/gmj-dice.zip",
+  "compatibility": {
+    "minimum": "12",
+    "verified": "14"
+  },
+  "esmodules": [
+    "scripts/main.js"
+  ],
+  "styles": [
+    "styles/gmj-dice.css"
+  ],
+  "relationships": {
+    "recommends": [
+      {
+        "id": "dice-so-nice",
+        "type": "module",
+        "reason": "Shows the dice as 3D rolls on the table."
+      }
+    ]
+  }
+}
