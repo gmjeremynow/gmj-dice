@@ -181,7 +181,45 @@ Hooks.on("chatMessage", (_log, message) => {
   return false;
 });
 
+/**
+ * Classic polyhedral set, based on Jeremy's Gary Con dice.
+ * Each standard die type gets its own color. Pick "GM Jeremy's Classic Set"
+ * as the dice preset in Dice So Nice! to use it.
+ */
+const CLASSIC_SYSTEM = { id: "gmj-classic", name: "GM Jeremy's Classic Set" };
+const range = (n) => Array.from({ length: n }, (_, i) => String(i + 1));
+const CLASSIC_DICE = {
+  d4:   { background: "#eecc00", foreground: "#000000", labels: range(4) },
+  d6:   { background: "#ff6347", foreground: "#000000", labels: range(6) },
+  d8:   { background: "#1cc23c", foreground: "#000000", labels: range(8) },
+  d10:  { background: "#e8eadd", foreground: "#000000", labels: [...range(9), "0"] },
+  d12:  { background: "#4ab8ee", foreground: "#000000", labels: range(12) },
+  d20:  { background: "#d81020", foreground: "#000000", labels: range(20) },
+  d100: { background: "#121310", foreground: "#ffffff", labels: ["10", "20", "30", "40", "50", "60", "70", "80", "90", "00"] }
+};
+
+function registerClassicSet(dice3d) {
+  dice3d.addSystem(CLASSIC_SYSTEM, "default");
+  for (const [type, d] of Object.entries(CLASSIC_DICE)) {
+    const colorset = `gmj-classic-${type}`;
+    dice3d.addColorset({
+      name: colorset,
+      description: `Classic ${type}`,
+      category: "GM Jeremy's Dice",
+      foreground: d.foreground,
+      background: d.background,
+      outline: d.background,
+      edge: d.background,
+      texture: "none",
+      material: "plastic",
+      visible: "hidden"
+    }, "default");
+    dice3d.addDicePreset({ type, labels: d.labels, system: CLASSIC_SYSTEM.id, colorset });
+  }
+}
+
 // 3D appearance for Dice So Nice!
+Hooks.once("diceSoNiceReady", registerClassicSet);
 Hooks.once("diceSoNiceReady", (dice3d) => {
   dice3d.addSystem({ id: MODULE_ID, name: "GM Jeremy's Critical Hit Dice" }, "default");
 

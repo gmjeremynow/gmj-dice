@@ -8,6 +8,20 @@ A Foundry VTT module that adds three custom six-sided dice, each with picture fa
 | Fumble (orange) | `/fumble` | `1du` | Drop Weapon, Fall, Break Weapon, Hit Self, Hit Ally, Knocked Out |
 | Hit Location (gray) | `/location` | `1db` | Head, Torso, Right Arm, Left Arm, Right Leg, Left Leg |
 
+## Classic Polyhedral Set
+
+A multicolor set of standard dice for Dice So Nice!, based on a classic set bought at Gary Con. To use it, open Dice So Nice! settings and choose **GM Jeremy's Classic Set** under Dice Presets (Faces).
+
+| Die | Color |
+|---|---|
+| d4 | Yellow |
+| d6 | Coral orange |
+| d8 | Green |
+| d10 | White |
+| d12 | Light blue |
+| d20 | Red |
+| d100 (tens) | Black with white numbers |
+
 ## Features
 
 - **Chat commands** roll the die, wait for the 3D animation, then post a card with the face image and name.
