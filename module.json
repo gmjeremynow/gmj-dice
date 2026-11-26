@@ -1,8 +1,8 @@
 {
   "id": "gmj-dice",
   "title": "GM Jeremy's Critical Hit Dice",
-  "description": "Custom Critical Hit, Fumble and Hit Location dice, plus a classic multicolor polyhedral set, with 3D support through Dice So Nice!. Roll with /crit, /fumble and /location, or the formulas 1dh, 1du and 1db. A Sever Limb critical rolls Hit Location automatically.",
-  "version": "1.7.0",
+  "description": "Custom Critical Hit, Fumble and Hit Location dice, plus a classic multicolor polyhedral set and a Zocchihedron (single 100-sided die), with 3D support through Dice So Nice!. Roll with /crit, /fumble and /location, or the formulas 1dh, 1du and 1db. A Sever Limb critical rolls Hit Location automatically.",
+  "version": "1.8.0",
   "authors": [
     {
       "name": "GM Jeremy"
@@ -10,7 +10,7 @@
   ],
   "url": "https://github.com/gmjeremynow/gmj-dice",
   "manifest": "https://github.com/gmjeremynow/gmj-dice/releases/latest/download/module.json",
-  "download": "https://github.com/gmjeremynow/gmj-dice/releases/download/v1.7.0/gmj-dice.zip",
+  "download": "https://github.com/gmjeremynow/gmj-dice/releases/download/v1.8.0/gmj-dice.zip",
   "compatibility": {
     "minimum": "12",
     "verified": "14"
