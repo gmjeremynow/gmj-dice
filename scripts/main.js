@@ -122,6 +122,43 @@ class GMJZocchiDie extends BaseDie {
   static DENOMINATION = "z";
 }
 
+/*
+ * Dice So Nice! splits every 100-faced die into a tens die and a d10, so the
+ * Zocchihedron is kept out of its automatic handling (results marked hidden,
+ * the documented per-die skip) and shown directly with dice3d.show().
+ */
+const zocchiResults = (rolls = []) =>
+  rolls.flatMap(r => r.dice.filter(d => d instanceof GMJZocchiDie).flatMap(d => d.results));
+
+function showZocchi(values, { whisper = null, blind = false } = {}) {
+  if (!game.dice3d || !values.length) return Promise.resolve(false);
+  const data = { throws: [{ dice: values.map(v => ({
+    result: v, resultLabel: String(v), type: `d${GMJZocchiDie.DENOMINATION}`, vectors: [], options: {}
+  })) }] };
+  return game.dice3d.show(data, game.user, true, whisper?.length ? whisper : null, blind);
+}
+
+/** Roll the Zocchihedron, animate it, then post the result. */
+async function rollZocchihedron({ speaker, flavor = "Zocchihedron (d100)" } = {}) {
+  const roll = await new Roll(`1d${GMJZocchiDie.DENOMINATION}`).evaluate();
+  await showZocchi([roll.total]);
+  return roll.toMessage({ speaker: speaker ?? ChatMessage.getSpeaker(), flavor, flags: { [MODULE_ID]: { zocchiShown: true } } });
+}
+
+Hooks.on("preCreateChatMessage", (message) => {
+  const results = zocchiResults(message.rolls);
+  if (!results.length) return;
+  results.forEach(r => { r.hidden = true; });
+  message.updateSource({ rolls: message.rolls.map(r => JSON.stringify(r)) });
+});
+
+Hooks.on("createChatMessage", (message) => {
+  const author = message.author ?? message.user;
+  if (author?.id !== game.user.id || message.getFlag(MODULE_ID, "zocchiShown")) return;
+  const values = zocchiResults(message.rolls).map(r => r.result);
+  showZocchi(values, { whisper: message.whisper, blind: message.blind });
+});
+
 Hooks.once("init", () => {
   CONFIG.Dice.terms[GMJZocchiDie.DENOMINATION] = GMJZocchiDie;
   if (CONFIG.Dice.termTypes) CONFIG.Dice.termTypes[GMJZocchiDie.name] = GMJZocchiDie;
@@ -135,7 +172,8 @@ Hooks.once("init", () => {
     rollSpecial,
     rollCriticalHit: (opts) => rollSpecial("critical", opts),
     rollFumble: (opts) => rollSpecial("fumble", opts),
-    rollHitLocation: (opts) => rollSpecial("location", opts)
+    rollHitLocation: (opts) => rollSpecial("location", opts),
+    rollZocchihedron
   };
 });
 
@@ -155,7 +193,7 @@ const MACROS = {
   d4:   { name: "Roll 1d4",   img: `${ICON_PATH}/d4.svg`,  command: stdRoll("1d4") },
   d100: { name: "Roll 1d100", img: `${ICON_PATH}/d100.svg`, command: stdRoll("1d100") },
   zocchi: { name: "Roll Zocchihedron", img: `${ICON_PATH}/zocchihedron.svg`,
-    command: `new Roll("1dz").toMessage({ speaker: ChatMessage.getSpeaker(), flavor: "Zocchihedron (d100)" });` }
+    command: apiCall("rollZocchihedron") }
 };
 const FOLDER_NAME = "GM Jeremy's Critical Hit Dice";
 
@@ -180,6 +218,11 @@ async function ensureMacros() {
   const updates = game.macros
     .filter(m => MACROS[m.getFlag(MODULE_ID, "die")] && m.img?.startsWith("icons/dice/"))
     .map(m => ({ _id: m.id, img: MACROS[m.getFlag(MODULE_ID, "die")].img }));
+  // Point an older Roll Zocchihedron macro at the API so it animates correctly.
+  for (const m of game.macros.filter(m => m.getFlag(MODULE_ID, "die") === "zocchi" && m.command?.includes('new Roll("1dz")'))) {
+    const u = updates.find(x => x._id === m.id);
+    if (u) u.command = MACROS.zocchi.command; else updates.push({ _id: m.id, command: MACROS.zocchi.command });
+  }
   if (updates.length) await Macro.updateDocuments(updates);
 
   const existing = new Set(game.macros.map(m => m.getFlag(MODULE_ID, "die")).filter(Boolean));
@@ -207,6 +250,7 @@ Hooks.once("ready", ensureMacros);
 // Chat commands such as "/crit" and "/fumble".
 Hooks.on("chatMessage", (_log, message) => {
   const cmd = message.trim().toLowerCase();
+  if (cmd === "/zocchi") { rollZocchihedron(); return false; }
   const key = Object.keys(DICE).find(k => DICE[k].command === cmd);
   if (!key) return true;
   rollSpecial(key);
