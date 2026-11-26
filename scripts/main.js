@@ -127,19 +127,20 @@ Hooks.once("init", () => {
 });
 
 // Macros the module creates for the GM. Icons use one face of each die.
+const ICON_PATH = `modules/${MODULE_ID}/icons`;
 const apiCall = (fn) => `game.modules.get("${MODULE_ID}").api.${fn}();`;
 const stdRoll = (formula) => `new Roll("${formula}").toMessage({ speaker: ChatMessage.getSpeaker(), flavor: "${formula}" });`;
 const MACROS = {
   critical: { name: "Roll Critical Hit", img: `${FACE_PATH}/critical/death.png`, command: apiCall("rollCriticalHit") },
   fumble:   { name: "Roll Fumble",       img: `${FACE_PATH}/fumble/fall.png`,    command: apiCall("rollFumble") },
   location: { name: "Roll Hit Location", img: `${FACE_PATH}/location/torso.png`, command: apiCall("rollHitLocation") },
-  d20:  { name: "Roll 1d20",  img: "icons/dice/d20black.svg", command: stdRoll("1d20") },
-  d12:  { name: "Roll 1d12",  img: "icons/dice/d12black.svg", command: stdRoll("1d12") },
-  d10:  { name: "Roll 1d10",  img: "icons/dice/d10black.svg", command: stdRoll("1d10") },
-  d8:   { name: "Roll 1d8",   img: "icons/dice/d8black.svg",  command: stdRoll("1d8") },
-  d6:   { name: "Roll 1d6",   img: "icons/dice/d6black.svg",  command: stdRoll("1d6") },
-  d4:   { name: "Roll 1d4",   img: "icons/dice/d4black.svg",  command: stdRoll("1d4") },
-  d100: { name: "Roll 1d100", img: "icons/dice/d10black.svg", command: stdRoll("1d100") }
+  d20:  { name: "Roll 1d20",  img: `${ICON_PATH}/d20.svg`, command: stdRoll("1d20") },
+  d12:  { name: "Roll 1d12",  img: `${ICON_PATH}/d12.svg`, command: stdRoll("1d12") },
+  d10:  { name: "Roll 1d10",  img: `${ICON_PATH}/d10.svg`, command: stdRoll("1d10") },
+  d8:   { name: "Roll 1d8",   img: `${ICON_PATH}/d8.svg`,  command: stdRoll("1d8") },
+  d6:   { name: "Roll 1d6",   img: `${ICON_PATH}/d6.svg`,  command: stdRoll("1d6") },
+  d4:   { name: "Roll 1d4",   img: `${ICON_PATH}/d4.svg`,  command: stdRoll("1d4") },
+  d100: { name: "Roll 1d100", img: `${ICON_PATH}/d100.svg`, command: stdRoll("1d100") }
 };
 const FOLDER_NAME = "GM Jeremy's Critical Hit Dice";
 
@@ -158,6 +159,13 @@ Hooks.once("init", () => {
 async function ensureMacros() {
   const isLeadGM = game.users.activeGM ? game.users.activeGM.isSelf : game.user.isGM;
   if (!isLeadGM || !game.settings.get(MODULE_ID, "createMacros")) return;
+
+  // Refresh icons on macros this module made earlier (e.g. old black dice icons),
+  // but leave any icon the GM picked themselves.
+  const updates = game.macros
+    .filter(m => MACROS[m.getFlag(MODULE_ID, "die")] && m.img?.startsWith("icons/dice/"))
+    .map(m => ({ _id: m.id, img: MACROS[m.getFlag(MODULE_ID, "die")].img }));
+  if (updates.length) await Macro.updateDocuments(updates);
 
   const existing = new Set(game.macros.map(m => m.getFlag(MODULE_ID, "die")).filter(Boolean));
   const missing = Object.keys(MACROS).filter(k => !existing.has(k));
