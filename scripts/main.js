@@ -249,7 +249,8 @@ Hooks.once("ready", ensureMacros);
 
 // Chat commands such as "/crit" and "/fumble".
 Hooks.on("chatMessage", (_log, message) => {
-  const cmd = message.trim().toLowerCase();
+  // The rich-text chat box (Foundry v14) can send the text wrapped in HTML.
+  const cmd = String(message).replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim().toLowerCase();
   if (cmd === "/zocchi") { rollZocchihedron(); return false; }
   const key = Object.keys(DICE).find(k => DICE[k].command === cmd);
   if (!key) return true;
@@ -391,7 +392,16 @@ async function registerZocchihedron(dice3d) {
     console.warn(`${MODULE_ID} | Dice So Nice! is too old for custom shapes (needs 6.3.0+); the Zocchihedron will roll without a 3D model.`);
     return;
   }
-  dice3d.addDiceShape(ZOCCHI_SHAPE);
+  // The model is drawn at meshScale/100 of the table scale; the collider is
+  // multiplied by the preset scale Dice So Nice! borrows from the standard d100.
+  // Size the collider so the physics body matches the visible ball.
+  const factory = dice3d.DiceFactory ?? dice3d.dicefactory ?? dice3d.box?.dicefactory;
+  const presetScale = Number(factory?.systems?.get?.("standard")?.dice?.get?.("d100")?.scale) || 0.52;
+  const k = (ZOCCHI_SHAPE.meshScale ?? 100) / 100 / presetScale;
+  const { meshScale, ...bundle } = ZOCCHI_SHAPE;
+  bundle.vertices = ZOCCHI_SHAPE.vertices.map(v => v.map(c => c * k));
+  console.log(`${MODULE_ID} | Zocchihedron collider scale ${k.toFixed(3)} (d100 preset scale ${presetScale})`);
+  dice3d.addDiceShape(bundle);
   const labels = Array.from({ length: 100 }, (_, i) => String(i + 1));
   for (const system of ["standard", MODULE_ID]) {
     await dice3d.addDicePreset({
@@ -400,7 +410,7 @@ async function registerZocchihedron(dice3d) {
       values: { min: 1, max: 100 },
       modelFile: `modules/${MODULE_ID}/models/zocchihedron.glb`,
       system
-    }, ZOCCHI_SHAPE.name);
+    }, bundle.name);
   }
 }
 

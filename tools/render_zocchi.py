@@ -17,7 +17,7 @@ jl = struct.unpack("<I", glb[12:16])[0]; G = json.loads(glb[20:20 + jl]); bin_ =
 def acc(i, dt, n):
     a = G["accessors"][i]; v = G["bufferViews"][a["bufferView"]]
     return np.frombuffer(bin_[v["byteOffset"]:v["byteOffset"] + v["byteLength"]], dt).reshape(-1, n)
-pos, uv = acc(0, np.float32, 3), acc(2, np.float32, 2)
+pos, uv = acc(0, np.float32, 3) / B.get("meshScale", 1), acc(2, np.float32, 2)
 # per-face affine map from (e1,e2) plane coords to uv using first 3 verts of each face
 maps, off = [], 0
 bases = []

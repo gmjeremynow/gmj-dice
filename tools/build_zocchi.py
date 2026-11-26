@@ -12,6 +12,10 @@ from PIL import Image, ImageDraw, ImageFont
 
 OUT = sys.argv[1]
 N = 100
+# Dice So Nice! draws models at ~100 units (a standard d20 mesh is ~98 units
+# corner to centre). Collider vertices stay at unit size; main.js scales them
+# at load time to match. 110 makes the ball a bit bigger than a d20.
+MESH_SCALE = 110
 
 # 1. Evenly spread 100 face directions (Fibonacci lattice).
 i = np.arange(N) + 0.5
@@ -119,7 +123,7 @@ for f in range(N):
         pos.append(verts[k]); nor.append(P[f]); tex.append(uvs[f][j])
     for j in range(1, len(faces[f]) - 1):
         idx += [base, base + j, base + j + 1]
-pos = np.array(pos, np.float32); nor = np.array(nor, np.float32)
+pos = np.array(pos, np.float32) * MESH_SCALE; nor = np.array(nor, np.float32)
 tex = np.array(tex, np.float32); idx = np.array(idx, np.uint16)
 
 blobs, views = b"", []
@@ -158,6 +162,7 @@ open(OUT + "/models/zocchihedron.glb", "wb").write(glb)
 # 7. Dice So Nice! shape bundle.
 bundle = {
   "name": "gmj-dice.zocchihedron",
+  "meshScale": MESH_SCALE,
   "type": "ConvexPolyhedron",
   "vertices": [[round(float(c), 5) for c in v] for v in verts],
   "faces": faces,
