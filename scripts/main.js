@@ -127,10 +127,19 @@ Hooks.once("init", () => {
 });
 
 // Macros the module creates for the GM. Icons use one face of each die.
+const apiCall = (fn) => `game.modules.get("${MODULE_ID}").api.${fn}();`;
+const stdRoll = (formula) => `new Roll("${formula}").toMessage({ speaker: ChatMessage.getSpeaker(), flavor: "${formula}" });`;
 const MACROS = {
-  critical: { name: "Roll Critical Hit",  img: `${FACE_PATH}/critical/death.png`,  fn: "rollCriticalHit" },
-  fumble:   { name: "Roll Fumble",        img: `${FACE_PATH}/fumble/fall.png`,     fn: "rollFumble" },
-  location: { name: "Roll Hit Location",  img: `${FACE_PATH}/location/torso.png`,  fn: "rollHitLocation" }
+  critical: { name: "Roll Critical Hit", img: `${FACE_PATH}/critical/death.png`, command: apiCall("rollCriticalHit") },
+  fumble:   { name: "Roll Fumble",       img: `${FACE_PATH}/fumble/fall.png`,    command: apiCall("rollFumble") },
+  location: { name: "Roll Hit Location", img: `${FACE_PATH}/location/torso.png`, command: apiCall("rollHitLocation") },
+  d20:  { name: "Roll 1d20",  img: "icons/dice/d20black.svg", command: stdRoll("1d20") },
+  d12:  { name: "Roll 1d12",  img: "icons/dice/d12black.svg", command: stdRoll("1d12") },
+  d10:  { name: "Roll 1d10",  img: "icons/dice/d10black.svg", command: stdRoll("1d10") },
+  d8:   { name: "Roll 1d8",   img: "icons/dice/d8black.svg",  command: stdRoll("1d8") },
+  d6:   { name: "Roll 1d6",   img: "icons/dice/d6black.svg",  command: stdRoll("1d6") },
+  d4:   { name: "Roll 1d4",   img: "icons/dice/d4black.svg",  command: stdRoll("1d4") },
+  d100: { name: "Roll 1d100", img: "icons/dice/d10black.svg", command: stdRoll("1d100") }
 };
 const FOLDER_NAME = "GM Jeremy's Critical Hit Dice";
 
@@ -162,7 +171,7 @@ async function ensureMacros() {
     name: MACROS[k].name,
     type: "script",
     img: MACROS[k].img,
-    command: `game.modules.get("${MODULE_ID}").api.${MACROS[k].fn}();`,
+    command: MACROS[k].command,
     folder: folder.id,
     ownership: { default: observer },
     flags: { [MODULE_ID]: { die: k } }
@@ -198,7 +207,7 @@ const CLASSIC_DICE = {
   d100: { background: "#121310", foreground: "#ffffff", labels: ["10", "20", "30", "40", "50", "60", "70", "80", "90", "00"] }
 };
 
-function registerClassicSet(dice3d) {
+async function registerClassicSet(dice3d) {
   dice3d.addSystem(CLASSIC_SYSTEM, "default");
   for (const [type, d] of Object.entries(CLASSIC_DICE)) {
     const colorset = `gmj-classic-${type}`;
@@ -214,12 +223,107 @@ function registerClassicSet(dice3d) {
       material: "plastic",
       visible: "hidden"
     }, "default");
-    dice3d.addDicePreset({ type, labels: d.labels, system: CLASSIC_SYSTEM.id, colorset });
+    await dice3d.addDicePreset({ type, labels: d.labels, system: CLASSIC_SYSTEM.id, colorset });
   }
 }
 
+/*
+ * EXPERIMENTAL: show the Classic Set's d10 and d100 on a 20-sided model,
+ * numbered 1-0 twice, like old-style dice.
+ *
+ * Dice So Nice! only accepts a d10 replacement with exactly 10 values, so
+ * this reshapes the already-registered 10-sided presets in place and lets
+ * this one dice set skip that check. Every step is checked; if anything is
+ * not as expected, the 10-sided presets are restored and a warning is logged.
+ */
+Hooks.once("init", () => {
+  game.settings.register(MODULE_ID, "classic20", {
+    name: "Show Classic d10 and d100 as 20-sided dice (experimental)",
+    hint: "Draws the Classic Set's d10 and d100 on a d20 model numbered 1-0 twice. Turn off if those dice look wrong after a Dice So Nice! update.",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true,
+    requiresReload: true
+  });
+});
+
+const TWENTY_SIDED = {
+  d10:  ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
+  d100: ["10", "20", "30", "40", "50", "60", "70", "80", "90", "00"]
+};
+
+function applyClassic20(dice3d) {
+  const factory = dice3d.DiceFactory ?? dice3d.dicefactory ?? dice3d.box?.dicefactory;
+  const systems = factory?.systems;
+  if (!systems?.get || typeof factory.getPresetBySystem !== "function") {
+    throw new Error("Dice So Nice! internals not found");
+  }
+  const d20 = systems.get("standard")?.dice?.get("d20");
+  if (!d20) throw new Error("standard d20 model not found");
+
+  const restore = [];
+  try {
+    for (const [type, faceLabels] of Object.entries(TWENTY_SIDED)) {
+      const preset = systems.get(CLASSIC_SYSTEM.id)?.dice?.get(type);
+      const std = systems.get("standard")?.dice?.get(type);
+      if (!preset || !std || typeof preset.setLabels !== "function") throw new Error(`${type} preset not found`);
+      if (std.values?.length !== 10) throw new Error(`standard ${type} does not have 10 values`);
+
+      // Map each possible result to a face 1-10 the same way the standard
+      // 10-sided die does (a result of 0 counts as 10 on that die).
+      const stdFace = (r) => {
+        const v = r === 0 ? 10 : r;
+        if (std.valueMap) return std.valueMap[v];
+        const i = std.values.indexOf(v);
+        return i >= 0 ? i + 1 : undefined;
+      };
+      const valueMap = {};
+      for (const r of [0, ...std.values, ...Array.from({ length: 10 }, (_, i) => i + 1)]) {
+        const f = stdFace(r);
+        if (Number.isInteger(f) && f >= 1 && f <= 10) valueMap[r] = f;
+      }
+      if (Object.keys(valueMap).length < 10) throw new Error(`could not map ${type} results to faces`);
+
+      restore.push({ preset, saved: {
+        labels: preset.labels, shape: preset.shape, values: preset.values, valueMap: preset.valueMap,
+        scale: preset.scale, mass: preset.mass, inertia: preset.inertia
+      }});
+
+      preset.setLabels([...faceLabels, ...faceLabels]);
+      preset.shape = "d20";
+      preset.values = Array.from({ length: 20 }, (_, i) => i + 1);
+      preset.valueMap = valueMap;
+      preset.scale = d20.scale * (preset.scaleModifier ?? 1);
+      preset.mass = d20.mass;
+      preset.inertia = d20.inertia;
+    }
+  } catch (err) {
+    for (const { preset, saved } of restore) Object.assign(preset, saved);
+    throw err;
+  }
+
+  // Let this dice set's reshaped d10/d100 through the 10-value check.
+  const original = factory.getPresetBySystem.bind(factory);
+  factory.getPresetBySystem = function (type, system = "standard", ...rest) {
+    if (system === CLASSIC_SYSTEM.id && type in TWENTY_SIDED) {
+      const preset = systems.get(system)?.dice?.get(type);
+      if (preset) return preset;
+    }
+    return original(type, system, ...rest);
+  };
+}
+
 // 3D appearance for Dice So Nice!
-Hooks.once("diceSoNiceReady", registerClassicSet);
+Hooks.once("diceSoNiceReady", async (dice3d) => {
+  await registerClassicSet(dice3d);
+  if (!game.settings.get(MODULE_ID, "classic20")) return;
+  try {
+    applyClassic20(dice3d);
+  } catch (err) {
+    console.warn(`${MODULE_ID} | 20-sided Classic d10/d100 not applied, using 10-sided dice instead:`, err);
+  }
+});
 Hooks.once("diceSoNiceReady", (dice3d) => {
   dice3d.addSystem({ id: MODULE_ID, name: "GM Jeremy's Critical Hit Dice" }, "default");
 

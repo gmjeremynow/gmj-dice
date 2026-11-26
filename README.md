@@ -22,11 +22,13 @@ A multicolor set of standard dice for Dice So Nice!, based on a classic set boug
 | d20 | Red |
 | d100 (tens) | Black with white numbers |
 
+By default the Classic d10 and d100 are drawn on a 20-sided model numbered 1-0 twice, like old-style dice. This is experimental: it relies on Dice So Nice! internals and falls back to normal 10-sided dice if they change. Turn it off with the client setting "Show Classic d10 and d100 as 20-sided dice".
+
 ## Features
 
 - **Chat commands** roll the die, wait for the 3D animation, then post a card with the face image and name.
 - **Sever Limb** on the Critical Hit die automatically rolls the Hit Location die.
-- **Macros** for all three dice are created in the Macro Directory the first time a GM loads the world. Turn this off in the module settings with "Create macros automatically".
+- **Macros** for the three special dice, plus 1d20, 1d12, 1d10, 1d8, 1d6, 1d4 and 1d100, are created in the Macro Directory the first time a GM loads the world. Turn this off in the module settings with "Create macros automatically".
 - **Roll formulas** (`/r 1dh`, `/r 1du`, `/r 1db`) work anywhere Foundry accepts a formula. These show the face image in the roll tooltip but do not post a card or trigger follow-up rolls.
 
 ## Macro API
